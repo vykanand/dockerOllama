@@ -19,6 +19,9 @@ COPY express.js .
 COPY test.js .
 COPY load-model.sh .
 
+# Add this before running the application
+RUN cat /app/express.js | head -5
+
 # Make the script executable
 RUN chmod +x /app/load-model.sh
 
