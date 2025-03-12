@@ -1,43 +1,22 @@
-# Use Ubuntu as base image
-FROM ubuntu:22.04
+FROM ollama/ollama:latest
 
-# Avoid prompts from apt
-ENV DEBIAN_FRONTEND=noninteractive
+# Copy your application files
+COPY express.js /app/express.js
+COPY test.js /app/test.js
+COPY load-model.sh /app/load-model.sh
 
-# Install required dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    wget \
-    gnupg \
-    supervisor \
-    && rm -rf /var/lib/apt/lists/*
+# Install Node.js and npm
+RUN apt-get update && apt-get install -y nodejs npm
 
-# Install Node.js
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
-
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
-# Set up work directory for Express app
+# Install dependencies
 WORKDIR /app
+RUN npm init -y && npm install express axios
 
-# Copy package.json and install dependencies
-COPY package.json .
-RUN npm install
+# Make the script executable
+RUN chmod +x /app/load-model.sh
 
-# Copy Express.js application
-COPY express.js .
+# Expose the port your Express app uses
+EXPOSE 3000
 
-# Copy TinyLlama model loader script
-COPY load-model.sh /load-model.sh
-RUN chmod +x /load-model.sh
-
-# Copy supervisor configuration
-COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-
-# Expose ports
-EXPOSE 3000 11434
-
-# Run supervisor as the entry point
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
+# Start Ollama and your Express server
+CMD ["/bin/bash", "-c", "/app/load-model.sh & node /app/express.js"]
