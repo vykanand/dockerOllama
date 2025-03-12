@@ -4,18 +4,17 @@ FROM ollama/ollama:latest
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-# Install Node.js and npm first (this rarely changes)
+# Install Node.js and npm
 RUN apt-get update && apt-get install -y nodejs npm
 
 # Set up working directory
 WORKDIR /app
 
-# Copy only package files first to leverage caching
+# Copy package files first to leverage caching
 COPY package*.json ./
-RUN npm install
+RUN npm init -y && npm install express axios
 
-# Then copy the rest of the application code
-# (This layer only rebuilds when your code changes)
+# Copy application code
 COPY express.js .
 COPY test.js .
 COPY load-model.sh .
@@ -26,5 +25,6 @@ RUN chmod +x /app/load-model.sh
 # Expose the port your Express app uses
 EXPOSE 3000
 
-# Start Ollama and your Express server
-CMD ["/bin/bash", "-c", "/app/load-model.sh & node /app/express.js"]
+# Override the ENTRYPOINT and set a new CMD
+ENTRYPOINT []
+CMD ["/bin/bash", "-c", "ollama serve & /app/load-model.sh & node /app/express.js"]
