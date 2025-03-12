@@ -1,7 +1,0 @@
-[build]
-builder = "DOCKERFILE"
-dockerfilePath = "Dockerfile"
-
-[[mounts]]
-source = "ollama-models"
-destination = "/root/.ollama"
