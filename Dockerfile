@@ -1,5 +1,9 @@
 FROM ollama/ollama:latest
 
+# Set non-interactive installation
+ENV DEBIAN_FRONTEND=noninteractive
+ENV TZ=Etc/UTC
+
 # Copy your application files
 COPY express.js /app/express.js
 COPY test.js /app/test.js
