@@ -1,0 +1,13 @@
+# railway.json
+{
+  "build": {
+    "builder": "NIXPACKS",
+    "config": {
+      "nodeVersion": "18"
+    }
+  },
+  "deploy": {
+    "startCommand": "docker-compose up",
+    "healthcheckPath": "/health"
+  }
+}

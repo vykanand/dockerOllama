@@ -1,0 +1,14 @@
+version: '3'
+services:
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./startup.sh:/startup.sh
+    restart: unless-stopped
+    entrypoint: ["/bin/sh", "/startup.sh"]
+
+volumes:
+  ollama_data:

@@ -1,0 +1,11 @@
+{
+  "name": "ai-express-server",
+  "version": "1.0.0",
+  "description": "Express server for Ollama AI integration",
+  "main": "express.js",
+  "type": "module",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2"
+  }
+}
