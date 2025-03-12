@@ -4,17 +4,21 @@ FROM ollama/ollama:latest
 ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=Etc/UTC
 
-# Copy your application files
-COPY express.js /app/express.js
-COPY test.js /app/test.js
-COPY load-model.sh /app/load-model.sh
-
-# Install Node.js and npm
+# Install Node.js and npm first (this rarely changes)
 RUN apt-get update && apt-get install -y nodejs npm
 
-# Install dependencies
+# Set up working directory
 WORKDIR /app
-RUN npm init -y && npm install express axios
+
+# Copy only package files first to leverage caching
+COPY package*.json ./
+RUN npm install
+
+# Then copy the rest of the application code
+# (This layer only rebuilds when your code changes)
+COPY express.js .
+COPY test.js .
+COPY load-model.sh .
 
 # Make the script executable
 RUN chmod +x /app/load-model.sh
