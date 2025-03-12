@@ -1,5 +1,5 @@
-import express from "express";
-import axios from "axios";
+const express = require("express");
+const axios = require("axios");
 
 const app = express();
 app.use(express.json());
@@ -77,74 +77,13 @@ app.post("/v1/chat/completions", async (req, res) => {
       error.response ? error.response.data : error.message
     );
     res.status(500).json({
-      error: "AI processing failed",
+      error: "Failed to generate response",
       details: error.message,
     });
   }
 });
 
-// Also support the /aiserver endpoint for backward compatibility
-app.post("/aiserver", async (req, res) => {
-  try {
-    const messages = [
-      {
-        role: "user",
-        content: req.body.aiquestion,
-      },
-    ];
-
-    const sessionId =
-      req.body?.sessionId || Math.random().toString(36).substring(7);
-    const history = sessions.get(sessionId) || [];
-    const prompt = messages.map((m) => `${m.role}: ${m.content}`).join("\n");
-
-    const response = await axios.post(
-      `http://${OLLAMA_HOST}:11434/api/generate`,
-      {
-        model: MODEL_NAME,
-        prompt,
-        stream: false,
-      }
-    );
-
-    history.push({ role: "user", content: prompt });
-    history.push({ role: "assistant", content: response.data.response });
-    sessions.set(sessionId, history.slice(-MAX_HISTORY_LENGTH));
-
-    res.json({
-      response: response.data.response,
-      sessionId: sessionId,
-    });
-  } catch (error) {
-    console.error(
-      "Error details:",
-      error.response ? error.response.data : error.message
-    );
-    res.status(500).json({
-      error: "AI processing failed",
-      details: error.message,
-    });
-  }
-});
-
-// Wait for Ollama to be ready before starting the server
-const waitForOllama = async () => {
-  let ready = false;
-  while (!ready) {
-    try {
-      await axios.get("http://localhost:11434/api/tags");
-      ready = true;
-      console.log("Ollama service is ready");
-    } catch (error) {
-      console.log("Waiting for Ollama service to be ready...");
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-  }
-};
-
-// Start server after Ollama is ready
-waitForOllama().then(() => {
-  app.listen(3000, () =>
-    console.log(`HTTP Server running on port 3000 using model: ${MODEL_NAME}`)
-  );
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });
