@@ -1,39 +1,32 @@
-FROM ollama/ollama:latest
+FROM python:3.10-slim
 
-# Set non-interactive installation
-ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=Etc/UTC
-
-# Install Node.js and npm
-# Install Node.js 20.x
-RUN apt-get update && apt-get install -y ca-certificates curl gnupg && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && \
-    apt-get install -y nodejs
-
-# Set up working directory
 WORKDIR /app
 
-# Copy package files first to leverage caching
-COPY package*.json ./
-RUN npm init -y && npm install express axios
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    cmake \
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Create models directory
+RUN mkdir -p models
+
+# Download the 2-bit quantized model (Phi-2)
+RUN wget -O models/phi-2.Q2_K.gguf \
+    https://huggingface.co/TheBloke/phi-2-GGUF/resolve/main/phi-2.Q4_K.gguf
 
 # Copy application code
-COPY express.js .
-COPY test.js .
-COPY load-model.sh .
+COPY app.py .
 
-# Add this before running the application
-RUN cat /app/express.js | head -5
+# Expose the port the app runs on
+EXPOSE 5020
 
-# Make the script executable
-RUN chmod +x /app/load-model.sh
-
-# Expose the port your Express app uses
-EXPOSE 3000
-
-# Override the ENTRYPOINT and set a new CMD
-ENTRYPOINT []
-CMD ["/bin/bash", "-c", "ollama serve & /app/load-model.sh & node /app/express.js"]
+# Command to run the application
+CMD ["python", "app.py"]

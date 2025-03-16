@@ -1,0 +1,44 @@
+# Use Debian as base to install both Node.js and Ollama
+FROM debian:bullseye-slim
+
+# Set environment variables
+ENV DEBIAN_FRONTEND=noninteractive
+ENV NODE_VERSION=18.x
+ENV PORT=3000
+ENV OLLAMA_MODEL=llama3.2:latest
+
+# Install dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    ca-certificates \
+    lsb-release \
+    --no-install-recommends \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js
+RUN curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION} | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
+# Set up working directory for Node.js app
+WORKDIR /app
+
+# Copy Node.js application files
+COPY package*.json ./
+RUN npm install
+
+COPY server.js ./
+
+# Copy startup script
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# Expose ports for both services
+EXPOSE 3000 11434
+
+# Start both services
+CMD ["/start.sh"]
