@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic AI Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .message-bubble {
+            max-width: 80%;
+            border-radius: 1rem;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+        }
+        .assistant-message {
+            background-color: #f5f5f5;
+        }
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            margin: 0.5rem 0;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #666;
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out both;
+        }
+        .typing-dot:nth-child(2) { animation-delay: -0.3s; }
+        .typing-dot:nth-child(3) { animation-delay: -0.6s; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Dynamic AI Assistant</h1>
+            <p class="text-gray-600">Ask questions and get complete, detailed answers</p>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-md p-6 mb-8" id="chat-container">
+            <!-- Messages will be inserted here -->
+        </div>
+
+        <div class="fixed bottom-0 left-0 right-0 bg-white shadow-lg p-4">
+            <div class="max-w-4xl mx-auto">
+                <div class="flex gap-2">
+                    <input type="text" id="user-input" 
+                           class="flex-1 px-4 py-2 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                           placeholder="Ask your question..." 
+                           onkeypress="handleKeyPress(event)">
+                    <button onclick="sendMessage()"
+                            class="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition">
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isTyping = false;
+        let currentMessage = '';
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addMessage(content, isUser) {
+            const container = document.getElementById('chat-container');
+            const message = document.createElement('div');
+            message.className = `message-bubble ${isUser ? 'user-message' : 'assistant-message'}`;
+            message.textContent = content;
+            container.appendChild(message);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            const container = document.getElementById('chat-container');
+            const indicator = document.createElement('div');
+            indicator.className = 'typing-indicator';
+            for (let i = 0; i < 3; i++) {
+                const dot = document.createElement('div');
+                dot.className = 'typing-dot';
+                indicator.appendChild(dot);
+            }
+            container.appendChild(indicator);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            const container = document.getElementById('chat-container');
+            const indicator = container.querySelector('.typing-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('user-input');
+            const message = input.value.trim();
+            
+            if (message) {
+                // Add user message
+                addMessage(message, true);
+                input.value = '';
+
+                // Show typing indicator
+                showTypingIndicator();
+
+                // Create a container for the assistant's response
+                const responseContainer = document.createElement('div');
+                responseContainer.className = 'message-bubble assistant-message';
+                document.getElementById('chat-container').appendChild(responseContainer);
+
+                // Get all previous messages for context
+                const chatContainer = document.getElementById('chat-container');
+                const messages = [];
+                chatContainer.querySelectorAll('.message-bubble').forEach(messageElement => {
+                    const isUser = messageElement.classList.contains('user-message');
+                    messages.push({
+                        role: isUser ? 'user' : 'assistant',
+                        content: messageElement.textContent
+                    });
+                });
+
+                // Send request to API with context
+                fetch('/v1/chat/completions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        messages: [
+                            { 
+                                role: 'system', 
+                                content: 'You are a helpful assistant that provides complete, detailed answers to questions. Always ensure your responses are thorough and include all necessary information. Provide comprehensive, accurate, and well-structured answers. Maintain context from previous messages and build upon them. Never stop mid-sentence or mid-thought. Always complete your thoughts and provide full explanations.' 
+                            },
+                            ...messages,
+                            { role: 'user', content: message }
+                        ],
+                        max_tokens: 4096,
+                        temperature: 0.7,
+                        top_p: 0.9,
+                        stream: true
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Network response was not ok');
+                    }
+                    
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder();
+                    let isComplete = false;
+                    let retryCount = 0;
+                    const maxRetries = 15;  
+                    let fullResponse = '';
+                    let lastChunk = '';
+                    
+                    function processStream({ done, value }) {
+                        if (done) {
+                            // Check if the response is complete
+                            if (!isComplete && retryCount < maxRetries) {
+                                retryCount++;
+                                console.log(`Response incomplete, retrying (${retryCount}/${maxRetries})`);
+                                return fetch('/v1/chat/completions', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json'
+                                    },
+                                    body: JSON.stringify({
+                                        messages: [
+                                            { 
+                                                role: 'system', 
+                                                content: 'You are a helpful assistant that provides complete, detailed answers to questions. Always ensure your responses are thorough and include all necessary information. Provide comprehensive, accurate, and well-structured answers. Maintain context from previous messages and build upon them. Never stop mid-sentence or mid-thought. Always complete your thoughts and provide full explanations.' 
+                                            },
+                                            ...messages,
+                                            { role: 'user', content: message }
+                                        ],
+                                        max_tokens: 4096,
+                                        temperature: 0.7,
+                                        top_p: 0.9,
+                                        stream: true
+                                    })
+                                })
+                                .then(newResponse => {
+                                    if (!newResponse.ok) {
+                                        throw new Error('Network response was not ok');
+                                    }
+                                    return newResponse.body.getReader().read().then(processStream);
+                                });
+                            }
+                            hideTypingIndicator();
+                            return;
+                        }
+                        
+                        const chunk = decoder.decode(value);
+                        const lines = chunk.split('\n');
+                        
+                        lines.forEach(line => {
+                            if (line.trim()) {
+                                try {
+                                    const data = JSON.parse(line.replace('data: ', ''));
+                                    if (data.choices && data.choices[0].delta && data.choices[0].delta.content) {
+                                        const content = data.choices[0].delta.content;
+                                        fullResponse += content;
+                                        lastChunk = content;
+                                        responseContainer.textContent = fullResponse;
+                                        // Scroll to bottom
+                                        chatContainer.scrollTop = chatContainer.scrollHeight;
+                                    }
+                                    // Check for completion
+                                    if (data.choices && data.choices[0].finish_reason === 'stop') {
+                                        isComplete = true;
+                                    }
+                                } catch (error) {
+                                    console.error('Error parsing response:', error);
+                                }
+                            }
+                        });
+                        
+                        // Check if the last chunk is incomplete
+                        if (!isComplete && (!lastChunk.endsWith(('}', ';', '.', '?', '!')) || 
+                            !fullResponse.includes('The answer is') && 
+                            !fullResponse.includes('Therefore') && 
+                            !fullResponse.includes('In conclusion') && 
+                            !fullResponse.includes('Finally'))) {
+                            // Try to get more context
+                            fetch('/v1/chat/completions', {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json'
+                                },
+                                body: JSON.stringify({
+                                    messages: [
+                                        { 
+                                            role: 'system', 
+                                            content: 'You are a helpful assistant that provides complete, detailed answers to questions. Always ensure your responses are thorough and include all necessary information. Provide comprehensive, accurate, and well-structured answers. Maintain context from previous messages and build upon them. Never stop mid-sentence or mid-thought. Always complete your thoughts and provide full explanations.' 
+                                        },
+                                        ...messages,
+                                        { role: 'user', content: message },
+                                        { role: 'assistant', content: fullResponse }
+                                    ],
+                                    max_tokens: 512,
+                                    temperature: 0.7,
+                                    top_p: 0.9,
+                                    stream: true
+                                })
+                            })
+                            .then(additionalResponse => {
+                                if (!additionalResponse.ok) {
+                                    throw new Error('Network response was not ok');
+                                }
+                                return additionalResponse.body.getReader().read().then(processStream);
+                            });
+                        }
+                        
+                        return reader.read().then(processStream);
+                    }
+                    
+                    return reader.read().then(processStream);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    responseContainer.textContent = 'Sorry, there was an error processing your request. Please try again.';
+                })
+                .finally(() => {
+                    hideTypingIndicator();
+                });
+            }
+        }
+    </script>
+</body>
+</html>

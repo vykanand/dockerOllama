@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Model Manager - Dynamic Inference Server</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .model-card {
+            transition: all 0.3s ease;
+        }
+        .model-card:hover {
+            transform: translateY(-2px);
+        }
+        .loading {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-bold text-gray-800 mb-2">Model Manager</h1>
+            <p class="text-gray-600">Manage and switch between available models</p>
+        </header>
+
+        <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-6" id="modelGrid">
+            <!-- Model cards will be inserted here -->
+        </div>
+
+        <!-- Status Messages -->
+        <div id="statusMessage" class="fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg hidden"></div>
+    </div>
+
+    <script>
+        const showStatus = (message, isError = false) => {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg ${
+                isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+            }`;
+            statusEl.style.display = 'block';
+            setTimeout(() => {
+                statusEl.style.display = 'none';
+            }, 3000);
+        };
+
+        const createModelCard = (name, fullName, isLoaded, isActive) => {
+            const card = document.createElement('div');
+            card.className = `model-card bg-white rounded-lg shadow-md p-6 ${isActive ? 'ring-2 ring-blue-500' : ''}`;
+            card.innerHTML = `
+                <h3 class="text-xl font-semibold text-gray-800 mb-2">${name}</h3>
+                <p class="text-sm text-gray-600 mb-4">${fullName}</p>
+                <div class="flex items-center justify-between">
+                    <span class="px-3 py-1 rounded-full text-sm ${
+                        isLoaded ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                    }">${isLoaded ? 'Loaded' : 'Not Loaded'}</span>
+                    ${isActive ? '<span class="px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">Active</span>' : ''}
+                </div>
+                <div class="mt-4 flex justify-end space-x-2">
+                    ${!isLoaded ? 
+                        `<button onclick="loadModel('${name}')" class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 transition">Load</button>` :
+                        `<button onclick="unloadModel('${name}')" class="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition">Unload</button>`
+                    }
+                    ${isLoaded && !isActive ? 
+                        `<button onclick="activateModel('${name}')" class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition">Activate</button>` : ''
+                    }
+                </div>
+            `;
+            return card;
+        };
+
+        const updateModels = async () => {
+            try {
+                const response = await fetch('/v1/models');
+                const data = await response.json();
+                
+                const modelGrid = document.getElementById('modelGrid');
+                modelGrid.innerHTML = '';
+                
+                Object.entries(data.available_models).forEach(([name, fullName]) => {
+                    const isLoaded = data.loaded_models.includes(name);
+                    const isActive = data.active_model === name;
+                    modelGrid.appendChild(createModelCard(name, fullName, isLoaded, isActive));
+                });
+            } catch (error) {
+                showStatus('Failed to fetch models', true);
+            }
+        };
+
+        const loadModel = async (name) => {
+            try {
+                const response = await fetch(`/v1/models/${name}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showStatus(`Model ${name} loaded successfully`);
+                } else {
+                    showStatus(data.message, true);
+                }
+                updateModels();
+            } catch (error) {
+                showStatus('Failed to load model', true);
+            }
+        };
+
+        const unloadModel = async (name) => {
+            try {
+                const response = await fetch(`/v1/models/${name}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showStatus(`Model ${name} unloaded successfully`);
+                } else {
+                    showStatus(data.message, true);
+                }
+                updateModels();
+            } catch (error) {
+                showStatus('Failed to unload model', true);
+            }
+        };
+
+        const activateModel = async (name) => {
+            try {
+                const response = await fetch(`/v1/models/${name}`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                if (data.status === 'success') {
+                    showStatus(`Switched to model ${name}`);
+                } else {
+                    showStatus(data.message, true);
+                }
+                updateModels();
+            } catch (error) {
+                showStatus('Failed to switch model', true);
+            }
+        };
+
+        // Initial load
+        updateModels();
+        // Refresh every 5 seconds
+        setInterval(updateModels, 5000);
+    </script>
+</body>
+</html>
